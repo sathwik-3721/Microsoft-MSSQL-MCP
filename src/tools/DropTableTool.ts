@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { toSqlTable } from "./tableUtils.js";
 
 export class DropTableTool implements Tool {
   [key: string]: any;
@@ -16,11 +17,7 @@ export class DropTableTool implements Tool {
   async run(params: any) {
     try {
       const { tableName } = params;
-      // Basic validation to prevent SQL injection
-      if (!/^[\w\d_]+$/.test(tableName)) {
-        throw new Error("Invalid table name.");
-      }
-      const query = `DROP TABLE [${tableName}]`;
+      const query = `DROP TABLE ${toSqlTable(tableName)}`;
       await new sql.Request().query(query);
       return {
         success: true,

@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { parseTableName, quotedTable } from "./tableUtils.js";
 
 export class CreateIndexTool implements Tool {
   [key: string]: any;
@@ -34,14 +35,18 @@ export class CreateIndexTool implements Tool {
     try {
       const { schemaName, tableName, indexName, columns, isUnique = false, isClustered = false } = params;
 
-      let indexType = isClustered ? "CLUSTERED" : "NONCLUSTERED";
-      if (isUnique) {
-        indexType = `UNIQUE ${indexType}`;
-      }
-      const columnNames = columns.join(", ");
+      // Build a reliable quoted table reference.
+      // schemaName may be passed separately OR embedded in tableName (e.g. "dbo.orders").
+      const ref = parseTableName(tableName);
+      if (schemaName && !ref.schema) ref.schema = schemaName;
+      const tableRef = quotedTable(ref);
 
+      let indexType = isClustered ? "CLUSTERED" : "NONCLUSTERED";
+      if (isUnique) indexType = `UNIQUE ${indexType}`;
+
+      const columnNames = (columns as string[]).map((c) => `[${c}]`).join(", ");
       const request = new sql.Request();
-      const query = `CREATE ${indexType} INDEX ${indexName} ON ${schemaName}.${tableName} (${columnNames})`;
+      const query = `CREATE ${indexType} INDEX [${indexName}] ON ${tableRef} (${columnNames})`;
       await request.query(query);
       
       return {

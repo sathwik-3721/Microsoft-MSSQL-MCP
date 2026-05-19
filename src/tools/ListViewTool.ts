@@ -22,10 +22,14 @@ export class ListViewTool implements Tool {
     try {
       const { parameters } = params;
       const request = new sql.Request();
-      const schemaFilter =
-        parameters && parameters.length > 0
-          ? `AND TABLE_SCHEMA IN (${parameters.map((p: string) => `'${p}'`).join(", ")})`
-          : "";
+      let schemaFilter = "";
+      if (parameters && parameters.length > 0) {
+        const placeholders = (parameters as string[]).map((schema: string, i: number) => {
+          request.input(`schema${i}`, sql.NVarChar, schema);
+          return `@schema${i}`;
+        });
+        schemaFilter = `AND v.TABLE_SCHEMA IN (${placeholders.join(", ")})`;
+      }
       // INFORMATION_SCHEMA.VIEWS gives view name + definition
       // TABLE_TYPE = 'VIEW' in INFORMATION_SCHEMA.TABLES also works but lacks definition
       const query = `

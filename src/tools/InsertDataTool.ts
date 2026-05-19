@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { toSqlTable } from "./tableUtils.js";
 export class InsertDataTool implements Tool {
   [key: string]: any;
   name = "insert_data";
@@ -92,37 +93,37 @@ IMPORTANT RULES:
           };
         }
       }
-      const columns = firstRecordColumns.join(", ");
+      const columns = firstRecordColumns.map((c) => `[${c}]`).join(", ");
+      const sqlTable = toSqlTable(tableName);
       const request = new sql.Request();
       if (isMultipleRecords) {
         // Multiple records insert using VALUES clause - works for 1 or more records
         const valueClauses: string[] = [];
-        records.forEach((record, recordIndex) => {
+        records.forEach((record: any, recordIndex: number) => {
           const valueParams = firstRecordColumns
-            .map((column, columnIndex) => `@value${recordIndex}_${columnIndex}`)
+            .map((_column: string, columnIndex: number) => `@value${recordIndex}_${columnIndex}`)
             .join(", ");
           valueClauses.push(`(${valueParams})`);
-          // Add parameters for this record
-          firstRecordColumns.forEach((column, columnIndex) => {
+          firstRecordColumns.forEach((column: string, columnIndex: number) => {
             request.input(`value${recordIndex}_${columnIndex}`, record[column]);
           });
         });
-        const query = `INSERT INTO ${tableName} (${columns}) VALUES ${valueClauses.join(", ")}`;
+        const query = `INSERT INTO ${sqlTable} (${columns}) VALUES ${valueClauses.join(", ")}`;
         await request.query(query);
         return {
           success: true,
-          message: `Successfully inserted ${records.length} record${records.length > 1 ? 's' : ''} into ${tableName}`,
+          message: `Successfully inserted ${records.length} record${records.length > 1 ? "s" : ""} into ${tableName}`,
           recordsInserted: records.length,
         };
       } else {
-        // Single record insert (when data is passed as single object)
+        // Single record insert
         const values = firstRecordColumns
-          .map((column, index) => `@value${index}`)
+          .map((_column: string, index: number) => `@value${index}`)
           .join(", ");
-        firstRecordColumns.forEach((column, index) => {
+        firstRecordColumns.forEach((column: string, index: number) => {
           request.input(`value${index}`, records[0][column]);
         });
-        const query = `INSERT INTO ${tableName} (${columns}) VALUES (${values})`;
+        const query = `INSERT INTO ${sqlTable} (${columns}) VALUES (${values})`;
         await request.query(query);
         return {
           success: true,

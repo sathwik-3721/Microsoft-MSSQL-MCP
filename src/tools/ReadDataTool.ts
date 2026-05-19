@@ -42,15 +42,11 @@ export class ReadDataTool implements Tool {
     /--.*?(DELETE|DROP|UPDATE|INSERT|ALTER|CREATE|TRUNCATE|EXEC|EXECUTE)/i,
     /\/\*.*?(DELETE|DROP|UPDATE|INSERT|ALTER|CREATE|TRUNCATE|EXEC|EXECUTE).*?\*\//i,
     
-    // Stored procedure execution patterns
-    /EXEC\s*\(/i,
-    /EXECUTE\s*\(/i,
-    /sp_/i,
-    /xp_/i,
-    
-    // Dynamic SQL construction
-    /EXEC\s*\(/i,
-    /EXECUTE\s*\(/i,
+    // Stored procedure execution patterns — word-bounded to avoid false positives
+    /\bEXEC\s*\(/i,
+    /\bEXECUTE\s*\(/i,
+    /\bsp_\w/i,
+    /\bxp_\w/i,
     
     // Bulk operations
     /BULK\s+INSERT/i,
@@ -126,9 +122,9 @@ export class ReadDataTool implements Tool {
       }
     }
 
-    // Check for dangerous patterns using regex
+    // Check for dangerous patterns using regex (run on comment-stripped query)
     for (const pattern of ReadDataTool.DANGEROUS_PATTERNS) {
-      if (pattern.test(query)) {
+      if (pattern.test(cleanQuery)) {
         return { 
           isValid: false, 
           error: 'Potentially malicious SQL pattern detected. Only simple SELECT queries are allowed.' 
@@ -169,33 +165,31 @@ export class ReadDataTool implements Tool {
    * @param data The query result data
    * @returns Sanitized data
    */
-  private sanitizeResult(data: any[]): any[] {
+  private sanitizeResult(data: any[]): { truncated: boolean; data: any[] } {
     if (!Array.isArray(data)) {
-      return [];
+      return { truncated: false, data: [] };
     }
 
     // Limit the number of returned records to prevent memory issues
     const maxRecords = 10000;
-    if (data.length > maxRecords) {
-      console.warn(`Query returned ${data.length} records, limiting to ${maxRecords}`);
-      return data.slice(0, maxRecords);
-    }
+    const truncated = data.length > maxRecords;
+    if (truncated) console.warn(`Query returned ${data.length} records, limiting to ${maxRecords}`);
+    const limited = truncated ? data.slice(0, maxRecords) : data;
 
-    return data.map(record => {
-      if (typeof record === 'object' && record !== null) {
-        const sanitized: any = {};
+    const sanitized = limited.map((record: any) => {
+      if (typeof record === "object" && record !== null) {
+        const out: any = {};
         for (const [key, value] of Object.entries(record)) {
-          // Sanitize column names (remove any suspicious characters)
-          const sanitizedKey = key.replace(/[^\w\s-_.]/g, '');
-          if (sanitizedKey !== key) {
-            console.warn(`Column name sanitized: ${key} -> ${sanitizedKey}`);
-          }
-          sanitized[sanitizedKey] = value;
+          const safeKey = key.replace(/[^\w\s\-_.]/g, "");
+          if (safeKey !== key) console.warn(`Column name sanitized: ${key} -> ${safeKey}`);
+          out[safeKey] = value;
         }
-        return sanitized;
+        return out;
       }
       return record;
     });
+
+    return { truncated, data: sanitized };
   }
 
   /**
@@ -218,26 +212,22 @@ export class ReadDataTool implements Tool {
         };
       }
 
-      // Log the query for audit purposes (in production, consider more secure logging)
-      console.log(`Executing validated SELECT query: ${query.substring(0, 200)}${query.length > 200 ? '...' : ''}`);
+      // Log the query for audit purposes
+      console.error(`Executing validated SELECT query: ${query.substring(0, 200)}${query.length > 200 ? '...' : ''}`);
 
       // Execute the query
       const request = new sql.Request();
       const result = await request.query(query);
       
       // Sanitize the result
-      const sanitizedData = this.sanitizeResult(result.recordset);
-      
+      const { truncated, data: sanitizedData } = this.sanitizeResult(result.recordset);
+
       return {
         success: true,
-        message: `Query executed successfully. Retrieved ${sanitizedData.length} record(s)${
-          result.recordset.length !== sanitizedData.length 
-            ? ` (limited from ${result.recordset.length} total records)` 
-            : ''
-        }`,
+        message: `Query executed successfully. Retrieved ${sanitizedData.length} record(s)${truncated ? ` (truncated — more than 10,000 rows exist)` : ""}`,
         data: sanitizedData,
         recordCount: sanitizedData.length,
-        totalRecords: result.recordset.length
+        truncated,
       };
       
     } catch (error) {

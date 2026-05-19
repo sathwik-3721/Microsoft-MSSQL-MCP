@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { toSqlTable } from "./tableUtils.js";
 
 export class UpdateDataTool implements Tool {
   [key: string]: any;
@@ -34,6 +35,20 @@ export class UpdateDataTool implements Tool {
         throw new Error("WHERE clause is required for security reasons");
       }
 
+      // Validate updates object
+      if (!updates || typeof updates !== "object" || Array.isArray(updates)) {
+        throw new Error("'updates' must be a non-empty object of column/value pairs");
+      }
+      const updateKeys = Object.keys(updates);
+      if (updateKeys.length === 0) {
+        throw new Error("'updates' must contain at least one column to update");
+      }
+
+      // Guard against accidental mass-update via trivially true WHERE clause
+      if (/^\s*1\s*=\s*1\s*$/i.test(whereClause.trim())) {
+        throw new Error("WHERE clause '1=1' would update all rows — provide a specific condition");
+      }
+
       const request = new sql.Request();
       
       // Build SET clause with parameterized queries for security
@@ -45,7 +60,7 @@ export class UpdateDataTool implements Tool {
         })
         .join(", ");
 
-      query = `UPDATE ${tableName} SET ${setClause} WHERE ${whereClause}`;
+      query = `UPDATE ${toSqlTable(tableName)} SET ${setClause} WHERE ${whereClause}`;
       const result = await request.query(query);
       
       return {

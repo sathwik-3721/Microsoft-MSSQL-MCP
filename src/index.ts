@@ -25,6 +25,8 @@ import { ListTableTool } from "./tools/ListTableTool.js";
 import { DropTableTool } from "./tools/DropTableTool.js";
 import { DefaultAzureCredential, InteractiveBrowserCredential } from "@azure/identity";
 import { DescribeTableTool } from "./tools/DescribeTableTool.js";
+import { ListViewTool } from "./tools/ListViewTool.js";
+import { logToolCall, logToolSuccess, logToolError } from "./logger.js";
 
 dotenv.config();
 
@@ -102,12 +104,13 @@ const createIndexTool   = new CreateIndexTool();
 const listTableTool     = new ListTableTool();
 const dropTableTool     = new DropTableTool();
 const describeTableTool = new DescribeTableTool();
+const listViewTool      = new ListViewTool();
 
 const isReadOnly = process.env.READONLY === "true";
 
 const allTools = isReadOnly
-  ? [listTableTool, readDataTool, describeTableTool]
-  : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool];
+  ? [listTableTool, listViewTool, readDataTool, describeTableTool]
+  : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewTool];
 
 // ── MCP Server factory ──────────────────────────────────────────────────────
 // A new Server instance is created per session so each connection gets its own
@@ -299,6 +302,7 @@ async function runServer() {
 
       // ── /tools  (REST — list available MCP tools) ──────────────────────────
       } else if (req.method === "GET" && url.pathname === "/tools") {
+        process.stderr.write(`[${new Date().toISOString()}] GET /tools — ${allTools.length} tools listed\n`);
         sendJson(res, 200, {
           readonly: isReadOnly,
           count: allTools.length,
@@ -309,9 +313,32 @@ async function runServer() {
           })),
         });
 
-      // ── /health  (liveness probe) ───────────────────────────────────────────
+      // ── /health  (liveness + DB readiness probe) ───────────────────────────
       } else if (req.method === "GET" && url.pathname === "/health") {
-        sendJson(res, 200, { status: "ok", authMode });
+        process.stderr.write(`[${new Date().toISOString()}] GET /health\n`);
+        const dbStart = Date.now();
+        let dbStatus: "connected" | "disconnected" = "disconnected";
+        let dbError: string | undefined;
+        let dbLatencyMs: number | undefined;
+        try {
+          await ensureSqlConnection();
+          await new sql.Request().query("SELECT 1 AS ping");
+          dbLatencyMs = Date.now() - dbStart;
+          dbStatus = "connected";
+        } catch (err) {
+          dbError = err instanceof Error ? err.message : String(err);
+        }
+        const healthy = dbStatus === "connected";
+        process.stderr.write(`[${new Date().toISOString()}] GET /health — db=${dbStatus}${dbLatencyMs !== undefined ? ` latency=${dbLatencyMs}ms` : ""}${dbError ? ` error=${dbError}` : ""}\n`);
+        sendJson(res, healthy ? 200 : 503, {
+          status: healthy ? "ok" : "degraded",
+          authMode,
+          database: {
+            status: dbStatus,
+            ...(dbLatencyMs !== undefined && { latencyMs: dbLatencyMs }),
+            ...(dbError && { error: dbError }),
+          },
+        });
 
       } else {
         sendJson(res, 404, { error: "Not found" });
@@ -357,13 +384,23 @@ async function ensureSqlConnection() {
   globalSqlPool = await sql.connect(config);
 }
 
-// Patch all tool handlers to ensure SQL connection before running
-function wrapToolRun(tool: { run: (...args: any[]) => Promise<any> }) {
+// ── Wrap all tool .run() to ensure SQL connection + logging before/after each call ─
+function wrapToolRun(tool: { name: string; run: (...args: any[]) => Promise<any> }) {
   const originalRun = tool.run.bind(tool);
   tool.run = async function (...args: any[]) {
-    await ensureSqlConnection();
-    return originalRun(...args);
+    const toolArgs = args[0] ?? {};
+    logToolCall(tool.name, toolArgs);
+    const start = Date.now();
+    try {
+      await ensureSqlConnection();
+      const result = await originalRun(...args);
+      logToolSuccess(tool.name, Date.now() - start, result);
+      return result;
+    } catch (error) {
+      logToolError(tool.name, Date.now() - start, error);
+      throw error;
+    }
   };
 }
 
-[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, describeTableTool].forEach(wrapToolRun);
+[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, describeTableTool, listViewTool].forEach(wrapToolRun);

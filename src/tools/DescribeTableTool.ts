@@ -16,11 +16,39 @@ export class DescribeTableTool implements Tool {
 
   async run(params: { tableName: string }) {
     try {
-      const { tableName } = params;
+      const rawName = params?.tableName;
+      if (!rawName || typeof rawName !== "string" || rawName.trim() === "") {
+        return { success: false, message: "tableName is required" };
+      }
+
+      // Strip T-SQL bracket quoting e.g. [dbo].[agent_messages] → dbo.agent_messages
+      const cleaned  = rawName.trim().replace(/\[([^\]]+)\]/g, "$1");
+      const dotIndex = cleaned.indexOf(".");
+      const schema   = dotIndex !== -1 ? cleaned.slice(0, dotIndex) : null;
+      const table    = dotIndex !== -1 ? cleaned.slice(dotIndex + 1) : cleaned;
+
       const request = new sql.Request();
-      const query = `SELECT COLUMN_NAME as name, DATA_TYPE as type FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @tableName`;
-      request.input("tableName", sql.NVarChar, tableName);
+      request.input("tableName", sql.NVarChar, table);
+
+      let query = `SELECT COLUMN_NAME as name, DATA_TYPE as type
+                   FROM INFORMATION_SCHEMA.COLUMNS
+                   WHERE TABLE_NAME = @tableName`;
+
+      if (schema) {
+        request.input("tableSchema", sql.NVarChar, schema);
+        query += ` AND TABLE_SCHEMA = @tableSchema`;
+      }
+
+      query += ` ORDER BY ORDINAL_POSITION`;
+
       const result = await request.query(query);
+      if (result.recordset.length === 0) {
+        return {
+          success: false,
+          message: `Table '${rawName}' not found or has no columns. Use list_table or list_view to get exact table names.`,
+          columns: [],
+        };
+      }
       return {
         success: true,
         columns: result.recordset,

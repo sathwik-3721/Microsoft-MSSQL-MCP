@@ -24,7 +24,15 @@ export class ListTableTool implements Tool {
     try {
       const { parameters } = params;
       const request = new sql.Request();
-      const schemaFilter = parameters && parameters.length > 0 ? `AND TABLE_SCHEMA IN (${parameters.map((p: string) => `'${p}'`).join(", ")})` : "";
+      let schemaFilter = "";
+      if (parameters && parameters.length > 0) {
+        // Parameterize each schema name to prevent SQL injection
+        const placeholders = (parameters as string[]).map((schema: string, i: number) => {
+          request.input(`schema${i}`, sql.NVarChar, schema);
+          return `@schema${i}`;
+        });
+        schemaFilter = `AND TABLE_SCHEMA IN (${placeholders.join(", ")})`;
+      }
       const query = `SELECT TABLE_SCHEMA + '.' + TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ${schemaFilter} ORDER BY TABLE_SCHEMA, TABLE_NAME`;
       const result = await request.query(query);
       return {

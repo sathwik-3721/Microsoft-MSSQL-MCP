@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { toSqlTable } from "./tableUtils.js";
 
 export class CreateTableTool implements Tool {
   [key: string]: any;
@@ -32,7 +33,7 @@ export class CreateTableTool implements Tool {
         throw new Error("'columns' must be a non-empty array");
       }
       const columnDefs = columns.map((col: any) => `[${col.name}] ${col.type}`).join(", ");
-      const query = `CREATE TABLE [${tableName}] (${columnDefs})`;
+      const query = `CREATE TABLE ${toSqlTable(tableName)} (${columnDefs})`;
       await new sql.Request().query(query);
       return {
         success: true,

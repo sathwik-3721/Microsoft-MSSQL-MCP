@@ -1,171 +1,255 @@
-# MSSQL Database MCP  Server
+# MSSQL Database MCP Server (Enhanced Version)
 
-<div align="center">
-  <img src="./src/img/logo.png" alt="MSSQL Database MCP server logo" width="400"/>
-</div>
+<p align="center">
+  <img 
+    src="./src/img/logo.png" 
+    alt="MSSQL Database MCP Server Logo"
+    width="240"
+  />
+</p>
 
-> ⚠️ **EXPERIMENTAL USE ONLY** - This MCP Server is provided as an example for educational and experimental purposes only. It is NOT intended for production use. Please use appropriate security measures and thoroughly test before considering any kind of deployment.
+<p align="center">
 
-## What is this? 🤔
+  <a href="https://github.com/sathwik-3721/Microsoft-MSSQL-MCP/stargazers">
+    <img src="https://img.shields.io/github/stars/sathwik-3721/Microsoft-MSSQL-MCP?style=for-the-badge" />
+  </a>
 
-This is a server that lets your LLMs (like Claude) talk directly to your MSSQL Database data! Think of it as a friendly translator that sits between your AI assistant and your database, making sure they can chat securely and efficiently.
+  <a href="https://github.com/sathwik-3721/Microsoft-MSSQL-MCP/network/members">
+    <img src="https://img.shields.io/github/forks/sathwik-3721/Microsoft-MSSQL-MCP?style=for-the-badge" />
+  </a>
 
-### Quick Example
-```text
-You: "Show me all customers from New York"
-Claude: *queries your MSSQL Database database and gives you the answer in plain English*
-```
+  <a href="https://github.com/sathwik-3721/Microsoft-MSSQL-MCP/issues">
+    <img src="https://img.shields.io/github/issues/sathwik-3721/Microsoft-MSSQL-MCP?style=for-the-badge" />
+  </a>
 
-## How Does It Work? 🛠️
+  <a href="https://github.com/sathwik-3721/Microsoft-MSSQL-MCP/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/sathwik-3721/Microsoft-MSSQL-MCP?style=for-the-badge" />
+  </a>
 
-This server leverages the Model Context Protocol (MCP), a versatile framework that acts as a universal translator between AI models and databases. It supports multiple AI assistants including Claude Desktop and VS Code Agent.
+</p>
 
-### What Can It Do? 📊
+<p align="center">
+  <strong>Enterprise-ready enhanced Microsoft SQL Server MCP server implementation featuring HTTP/SSE transports, advanced schema discovery, cloud deployment readiness, and compatibility with leading AI agent frameworks.</strong>
+</p>
 
-- Run MSSQL Database queries by just asking questions in plain English
-- Create, read, update, and delete data
-- Manage database schema (tables, indexes)
-- Secure connection handling
-- Real-time data interaction
+> [!NOTE]
+> This repository is a heavily enhanced version of the original [Azure-Samples/SQL-AI-samples (MssqlMcp/Node)](https://github.com/Azure-Samples/SQL-AI-samples/tree/main/MssqlMcp/Node) repository. It contains substantial enhancements to support web-based agent frameworks, cloud deployments, and advanced schema discovery.
+
+---
+
+## 🚀 Key Improvements in this Version
+
+Compared to the upstream Azure-Samples template, which was restricted to running locally via standard input/output (`stdio`), this enhanced version has been redesigned for enterprise AI agent systems:
+
+### 1. HTTP and SSE Transport Modes (Agent Ready)
+
+* **Upstream**: Only supported `stdio` transport, limiting use to local clients like Claude Desktop or local VS Code extensions.
+* **This Version**: Includes full support for **Streamable HTTP** (MCP spec 2025-03-26) and **legacy Server-Sent Events (SSE)**. You can run the server as a standalone daemon (e.g. on port `8080`) by executing:
+
+  ```bash
+  node dist/index.js --http
+  ```
+
+* **Why it matters**: This makes the server fully deployable to cloud environments like **Azure Container Apps (ACA)** or **AWS Fargate**, where remote web-based Agent Frameworks (e.g., Microsoft Agent Framework, AutoGen, Semantic Kernel) can connect to it over standard HTTP/HTTPS.
+
+### 2. New `schema_discovery` Tool
+
+* **Upstream**: Required the agent to call `list_tables` followed by `describe_table` individually for every single table. This resulted in an $N+1$ network call overhead, causing high latency and token consumption.
+* **This Version**: Adds the `schema_discovery` tool, which fetches the metadata blueprint of the entire database in a single query:
+  * Table & Schema Names
+  * Columns and Data Types
+  * Data constraints (`max_length`, `precision`, `scale`, `is_nullable`)
+  * Default constraint flag (`has_default`)
+  * Table-level description (`table_description`) resolved via SQL Server **Extended Properties** (`MS_Description`).
+* **Why it matters**: The LLM can bootstrap its context in a single call, understand the database layout, and use table descriptions to semantically map user requests (like "customer history") to the exact matching database tables.
+
+### 3. New `list_view` Tool
+
+* **Upstream**: Only supported listing user tables (`BASE TABLE`s). It was impossible for the LLM to know if views or materialized views existed.
+* **This Version**: Adds the `list_view` tool, which queries `INFORMATION_SCHEMA.VIEWS` to retrieve all views and their SQL definitions (`VIEW_DEFINITION`).
+* **Why it matters**: Allows the LLM to inspect view logic and query views directly using `read_data` or describe them using `describe_table` to get their schemas.
+
+### 4. Broadened Authentication Options
+
+* **Upstream**: Designed primarily for local token authentication.
+* **This Version**: Automatically detects the environment and switches between:
+  * **SQL Auth**: Plain SQL Server login credentials (`SQL_USER` + `SQL_PASSWORD`). Best for local development or traditional servers.
+  * **Azure AD Managed Identity**: Using `DefaultAzureCredential`. Ideal for zero-credential secure connections inside Azure Container Apps.
+  * **Azure AD Interactive Login**: Using `InteractiveBrowserCredential` as a fallback.
+
+---
+
+## What Can It Do? 📊
+
+* **Schema Discovery**: Learn the structure of tables, views, columns, and descriptions.
+* **Read-Only / Read-Write operations**: Run standard `SELECT` queries with safety protections.
+* **Write Operations (if enabled)**: Run `INSERT`, `UPDATE`, `DELETE`, and schema modification (`CREATE TABLE`, `CREATE INDEX`, `DROP TABLE`).
+* **Connection Health Monitoring**: Diagnostic `/health`, `/ready`, and `/metrics` REST endpoints when running in HTTP mode.
+
+---
 
 ## Quick Start 🚀
 
 ### Prerequisites
-- Node.js 14 or higher
-- Claude Desktop or VS Code with Agent extension
+
+* Node.js 16 or higher
+* Microsoft SQL Server or Azure SQL Database
 
 ### Set up project
 
 1. **Install Dependencies**  
-   Run the following command in the root folder to install all necessary dependencies:  
+
    ```bash
    npm install
    ```
 
 2. **Build the Project**  
-   Compile the project by running:  
+   Compile the TypeScript code:  
+
    ```bash
    npm run build
    ```
 
-## Configuration Setup
+---
 
-### Option 1: VS Code Agent Setup
+## Running the Server
 
-1. **Install VS Code Agent Extension**
-   - Open VS Code
-   - Go to Extensions (Ctrl+Shift+X)
-   - Search for "Agent" and install the official Agent extension
+### Option A: Standalone HTTP/SSE Mode (Recommended for Cloud & Web Agents)
 
-2. **Create MCP Configuration File**
-   - Create a `.vscode/mcp.json` file in your workspace
-   - Add the following configuration:
+Start the server in HTTP mode to listen on a port (defaults to `8080` or the `PORT` env variable):
 
-   ```json
-   {
-     "servers": {
-       "mssql-nodejs": {
-          "type": "stdio",
-          "command": "node",
-          "args": ["q:\\Repos\\SQL-AI-samples\\MssqlMcp\\Node\\dist\\index.js"],
-          "env": {
-            "SERVER_NAME": "your-server-name.database.windows.net",
-            "DATABASE_NAME": "your-database-name",
-            "READONLY": "false"
-          }
-        }
+```bash
+node dist/index.js --http
+```
+
+**Exposed Endpoints:**
+
+* `POST /mcp` - Streamable HTTP protocol endpoint.
+* `GET /sse` - Legacy SSE initialization stream.
+* `GET /tools` - REST list of all exposed MCP tools.
+* `GET /health` - Liveness & Database connection readiness check.
+
+### Option B: Local stdio Mode (Default - for local IDEs & Claude Desktop)
+
+Start the server using standard input/output (`stdio`). This is the default mode used by local MCP clients like Claude Desktop, Cursor, or VS Code extensions:
+
+```bash
+node dist/index.js
+```
+
+**Claude Desktop Configuration Example (`claude_desktop_config.json`):**
+
+To configure Claude Desktop to use this server, add the following to your configuration file (typically located at `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
+```json
+{
+  "mcpServers": {
+    "mssql-mcp-server": {
+      "command": "node",
+      "args": ["/path/to/your/project/dist/index.js"],
+      "env": {
+        "SERVER_NAME": "your-server-name.database.windows.net",
+        "DATABASE_NAME": "your-database-name",
+        "SQL_USER": "developer",
+        "SQL_PASSWORD": "your-secure-password",
+        "READONLY": "true"
       }
-   }
-   ```
-
-3. **Alternative: User Settings Configuration**
-   - Open VS Code Settings (Ctrl+,)
-   - Search for "mcp"
-   - Click "Edit in settings.json"
-   - Add the following configuration:
-
-  ```json
-   {
-    "mcp": {
-        "servers": {
-            "mssql": {
-                "command": "node",
-                "args": ["C:/path/to/your/Node/dist/index.js"],
-                "env": {
-                "SERVER_NAME": "your-server-name.database.windows.net",
-                "DATABASE_NAME": "your-database-name",
-                "READONLY": "false"
-                }
-            }
-        }
     }
   }
-  ```
+}
+```
 
-4. **Restart VS Code**
-   - Close and reopen VS Code for the changes to take effect
+---
 
-5. **Verify MCP Server**
-   - Open Command Palette (Ctrl+Shift+P)
-   - Run "MCP: List Servers" to verify your server is configured
-   - You should see "mssql" in the list of available servers
+## Environment Variables Configuration (`.env`)
 
-### Option 2: Claude Desktop Setup
+Configure the following variables in a `.env` file at the root of the project:
 
-1. **Open Claude Desktop Settings**
-   - Navigate to File → Settings → Developer → Edit Config
-   - Open the `claude_desktop_config` file
+```ini
+# Database Connection Settings
+SERVER_NAME=your-server-name.database.windows.net
+DATABASE_NAME=your-database-name
 
-2. **Add MCP Server Configuration**
-   Replace the content with the configuration below, updating the path and credentials:
+# Security / Access Control
+# Set to true to allow only read operations (SELECT, list, describe)
+READONLY=true
 
-   ```json
-   {
-     "mcpServers": {
-       "mssql": {
-         "command": "node",
-         "args": ["C:/path/to/your/Node/dist/index.js"],
-         "env": {
-           "SERVER_NAME": "your-server-name.database.windows.net",
-           "DATABASE_NAME": "your-database-name",
-           "READONLY": "false"
-         }
-       }
-     }
-   }
-   ```
+# Authentication (optional: omit if using Azure AD Managed Identity in ACA)
+SQL_USER=developer
+SQL_PASSWORD=your-secure-password
 
-3. **Restart Claude Desktop**
-   - Close and reopen Claude Desktop for the changes to take effect
+# Connection Options
+TRUST_SERVER_CERTIFICATE=false
+CONNECTION_TIMEOUT=30
+```
 
-### Configuration Parameters
+### Explanations of Keys
 
-- **SERVER_NAME**: Your MSSQL Database server name (e.g., `my-server.database.windows.net`)
-- **DATABASE_NAME**: Your database name
-- **READONLY**: Set to `"true"` to restrict to read-only operations, `"false"` for full access
-- **Path**: Update the path in `args` to point to your actual project location.
-- **CONNECTION_TIMEOUT**: (Optional) Connection timeout in seconds. Defaults to `30` if not set.
-- **TRUST_SERVER_CERTIFICATE**: (Optional) Set to `"true"` to trust self-signed server certificates (useful for development or when connecting to servers with self-signed certs). Defaults to `"false"`.
+* **`SERVER_NAME`**: The SQL Server host address (e.g. `localhost` or `my-server.database.windows.net`).
+* **`DATABASE_NAME`**: Name of the database to connect to.
+* **`READONLY`**:
+  * If set to `true`, the MCP server registers **only** read tools (`list_table`, `list_view`, `describe_table`, `schema_discovery`, and `read_data`). All modifying tools (insert, update, delete, create, drop) are fully omitted.
+  * If set to `false`, the server registers all read and write tools.
+* **`SQL_USER` / `SQL_PASSWORD`**: SQL login credentials. If omitted, the server automatically attempts to authenticate using **Azure Active Directory (Managed Identity)**.
+* **`TRUST_SERVER_CERTIFICATE`**: Set to `true` if you are using a self-signed development SQL Server certificate.
+* **`CONNECTION_TIMEOUT`**: Connection timeout in seconds. Defaults to `30`.
 
-## Sample Configurations
+---
 
-You can find sample configuration files in the `src/samples/` folder:
-- `claude_desktop_config.json` - For Claude Desktop
-- `vscode_agent_config.json` - For VS Code Agent
+## Tool Reference
 
-## Usage Examples
+The following tools are registered on the MCP protocol:
 
-Once configured, you can interact with your database using natural language:
+* **`schema_discovery`** [NEW]: Discover the entire schema (tables, columns, types, defaults, and table descriptions).
+* **`list_table`**: List tables in the database (optionally filtered by schema).
+* **`list_view`** [NEW]: List views and their view definitions.
+* **`describe_table`**: Returns simple name-and-type details for columns in a single table.
+* **`read_data`**: Run any read-only `SELECT` query (enforces strict safety filters).
+* **`insert_data`** [Read-Write]: Insert a row into a table.
+* **`update_data`** [Read-Write]: Update data in a table (requires a `WHERE` clause).
+* **`create_table`** [Read-Write]: Create a new table.
+* **`create_index`** [Read-Write]: Create an index on a table.
+* **`drop_table`** [Read-Write]: Drop a table.
 
-- "Show me all users from New York"
-- "Create a new table called products with columns for id, name, and price"
-- "Update all pending orders to completed status"
-- "List all tables in the database"
+---
 
-## Security Notes
+## 🛡️ SQL Safety Filters & Security
 
-- The server requires a WHERE clause for read operations to prevent accidental full table scans
-- Update operations require explicit WHERE clauses for security
-- Set `READONLY: "true"` in environments if you only need read access
+To prevent SQL Injection, privilege escalation, and database resource exhaustion, the `read_data` tool enforces a multi-layered verification filter on all incoming queries:
 
-You should now have successfully configured the MCP server for MSSQL Database with your preferred AI assistant. This setup allows you to seamlessly interact with MSSQL Database through natural language queries!
+### 1. Mandatory `SELECT` Prefix
+
+* All comments (both single-line `--` and block `/* ... */`) are stripped out.
+* The query is trimmed and converted to uppercase.
+* The query **must** begin with the `SELECT` keyword. Any other statements are immediately rejected.
+
+### 2. Multi-Statement Block
+
+* Queries are split by semicolons `;`.
+* If more than one non-empty SQL statement is detected, the query is blocked to prevent stacked queries (e.g., `SELECT * FROM users; DROP TABLE users`).
+
+### 3. Blacklisted Keywords
+
+The tool uses a strict regex word-boundary filter to block queries containing dangerous operations, even inside subqueries or filters. The blacklisted keywords include:
+
+* **DML/DDL**: `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `CREATE`, `TRUNCATE`, `MERGE`, `REPLACE`
+* **Access Control**: `GRANT`, `REVOKE`
+* **Execution & Procedures**: `EXEC`, `EXECUTE`, `DECLARE`, `BEGIN`, `SET`, `USE`
+* **System Operations**: `SHUTDOWN`, `KILL`, `BACKUP`, `RESTORE`
+
+### 4. Malicious Patterns & Injection Detection
+
+Specific regex patterns are evaluated to catch common SQL injection and obfuscation techniques:
+
+* **`SELECT INTO`**: Blocked to prevent the creation of new tables.
+* **`UNION SELECT`**: Blocked if paired with any dangerous keywords to prevent retrieving unauthorized structural data.
+* **Bulk Actions & Remote DB Access**: Blocked queries containing `BULK INSERT`, `OPENROWSET`, `OPENDATASOURCE`, `OPENQUERY`, or `OPENXML`.
+* **Database Metadata Functions**: Blocked `@@` system variables, `SYSTEM_USER`, `USER_NAME()`, `DB_NAME()`, and `HOST_NAME()` to prevent information leakage.
+* **Time-delay Attacks**: Blocked `WAITFOR DELAY` and `WAITFOR TIME`.
+* **Obfuscation Detection**: Blocked string conversion functions `CHAR()`, `NCHAR()`, and `ASCII()` which are often used to bypass filters.
+
+### 5. Resource Limits (Prevention of Denial of Service)
+
+* **Query Length**: Queries are restricted to a maximum of `10,000` characters.
+* **Row Count Caps**: Query results are capped at a maximum of `10,000` records in memory. Any query returning more rows is safely truncated, and a warning flag is set in the JSON response.
+* **Column Name Sanitization**: Column names returned in the payload are sanitized to remove non-alphanumeric characters, ensuring no security exploits in client UI renders.

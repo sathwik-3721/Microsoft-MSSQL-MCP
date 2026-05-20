@@ -26,6 +26,7 @@ import { DropTableTool } from "./tools/DropTableTool.js";
 import { DefaultAzureCredential, InteractiveBrowserCredential } from "@azure/identity";
 import { DescribeTableTool } from "./tools/DescribeTableTool.js";
 import { ListViewTool } from "./tools/ListViewTool.js";
+import { SchemaDiscoveryTool } from "./tools/SchemaDiscoveryTool.js";
 import { logToolCall, logToolSuccess, logToolError } from "./logger.js";
 
 dotenv.config();
@@ -105,12 +106,13 @@ const listTableTool     = new ListTableTool();
 const dropTableTool     = new DropTableTool();
 const describeTableTool = new DescribeTableTool();
 const listViewTool      = new ListViewTool();
+const schemaDiscoveryTool = new SchemaDiscoveryTool();
 
 const isReadOnly = process.env.READONLY === "true";
 
 const allTools = isReadOnly
-  ? [listTableTool, listViewTool, readDataTool, describeTableTool]
-  : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewTool];
+  ? [listTableTool, listViewTool, readDataTool, describeTableTool, schemaDiscoveryTool]
+  : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewTool, schemaDiscoveryTool];
 
 // ── MCP Server factory ──────────────────────────────────────────────────────
 // A new Server instance is created per session so each connection gets its own
@@ -161,6 +163,9 @@ function createMcpServer(): Server {
           };
         }
         result = await describeTableTool.run(args as { tableName: string });
+        break;
+      case schemaDiscoveryTool.name:
+        result = await schemaDiscoveryTool.run(args as { schema?: string });
         break;
       default:
         return {
@@ -403,4 +408,4 @@ function wrapToolRun(tool: { name: string; run: (...args: any[]) => Promise<any>
   };
 }
 
-[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, describeTableTool, listViewTool].forEach(wrapToolRun);
+[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, describeTableTool, listViewTool, schemaDiscoveryTool].forEach(wrapToolRun);

@@ -27,23 +27,26 @@ export class CreateTableTool implements Tool {
   } as any;
 
   async run(params: any) {
+    let query: string | undefined;
     try {
       const { tableName, columns } = params;
       if (!Array.isArray(columns) || columns.length === 0) {
         throw new Error("'columns' must be a non-empty array");
       }
       const columnDefs = columns.map((col: any) => `[${col.name}] ${col.type}`).join(", ");
-      const query = `CREATE TABLE ${toSqlTable(tableName)} (${columnDefs})`;
+      query = `CREATE TABLE ${toSqlTable(tableName)} (${columnDefs})`;
       await new sql.Request().query(query);
       return {
         success: true,
-        message: `Table '${tableName}' created successfully.`
+        message: `Table '${tableName}' created successfully.`,
+        query,
       };
     } catch (error) {
       console.error("Error creating table:", error);
       return {
         success: false,
-        message: `Failed to create table: ${error}`
+        message: `Failed to create table: ${error}`,
+        query,
       };
     }
   }

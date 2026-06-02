@@ -32,6 +32,7 @@ export class CreateIndexTool implements Tool {
   } as any;
 
   async run(params: any) {
+    let query: string | undefined;
     try {
       const { schemaName, tableName, indexName, columns, isUnique = false, isClustered = false } = params;
 
@@ -46,26 +47,28 @@ export class CreateIndexTool implements Tool {
 
       const columnNames = (columns as string[]).map((c) => `[${c}]`).join(", ");
       const request = new sql.Request();
-      const query = `CREATE ${indexType} INDEX [${indexName}] ON ${tableRef} (${columnNames})`;
+      query = `CREATE ${indexType} INDEX [${indexName}] ON ${tableRef} (${columnNames})`;
       await request.query(query);
       
       return {
         success: true,
-        message: `Index [${indexName}] created successfully on table [${schemaName}.${tableName}]`,
+        message: `Index [${indexName}] created successfully on table [${ref.schema ?? "dbo"}.${ref.table}]`,
         details: {
-          schemaName,
-          tableName,
+          schemaName: ref.schema ?? "dbo",
+          tableName: ref.table,
           indexName,
           columnNames,
           isUnique,
           isClustered
-        }
+        },
+        query,
       };
     } catch (error) {
       console.error("Error creating index:", error);
       return {
         success: false,
         message: `Failed to create index: ${error}`,
+        query,
       };
     }
   }

@@ -67,12 +67,14 @@ export class UpdateDataTool implements Tool {
         success: true,
         message: `Update completed successfully. ${result.rowsAffected[0]} row(s) affected`,
         rowsAffected: result.rowsAffected[0],
+        query,
       };
     } catch (error) {
       console.error("Error updating data:", error);
       return {
         success: false,
         message: `Failed to update data ${query ? ` with '${query}'` : ''}: ${error}`,
+        query,
       };
     }
   }

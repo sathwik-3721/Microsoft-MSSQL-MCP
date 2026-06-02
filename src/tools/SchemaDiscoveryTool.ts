@@ -17,6 +17,7 @@ export class SchemaDiscoveryTool implements Tool {
   } as any;
 
   async run(params: { schema?: string }) {
+    let query: string | undefined;
     try {
       const request = new sql.Request();
       let schemaFilter = "";
@@ -26,7 +27,7 @@ export class SchemaDiscoveryTool implements Tool {
         schemaFilter = "WHERE s.name = @schema";
       }
 
-      const query = `
+      query = `
         SELECT
             s.name as schema_name,
             t.name as table_name,
@@ -50,12 +51,17 @@ export class SchemaDiscoveryTool implements Tool {
       `;
 
       const result = await request.query(query);
-      return result.recordset;
+      return {
+        success: true,
+        columns: result.recordset,
+        query,
+      };
     } catch (error) {
       console.error("Error executing schema discovery:", error);
       return {
         success: false,
         message: `Failed to discover schema: ${error}`,
+        query,
       };
     }
   }

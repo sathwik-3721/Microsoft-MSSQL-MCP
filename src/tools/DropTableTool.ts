@@ -15,19 +15,22 @@ export class DropTableTool implements Tool {
   } as any;
 
   async run(params: any) {
+    let query: string | undefined;
     try {
       const { tableName } = params;
-      const query = `DROP TABLE ${toSqlTable(tableName)}`;
+      query = `DROP TABLE ${toSqlTable(tableName)}`;
       await new sql.Request().query(query);
       return {
         success: true,
-        message: `Table '${tableName}' dropped successfully.`
+        message: `Table '${tableName}' dropped successfully.`,
+        query,
       };
     } catch (error) {
       console.error("Error dropping table:", error);
       return {
         success: false,
-        message: `Failed to drop table: ${error}`
+        message: `Failed to drop table: ${error}`,
+        query,
       };
     }
   }

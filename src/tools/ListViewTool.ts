@@ -19,6 +19,7 @@ export class ListViewTool implements Tool {
   } as any;
 
   async run(params: any) {
+    let query: string | undefined;
     try {
       const { parameters } = params;
       const request = new sql.Request();
@@ -32,7 +33,7 @@ export class ListViewTool implements Tool {
       }
       // INFORMATION_SCHEMA.VIEWS gives view name + definition
       // TABLE_TYPE = 'VIEW' in INFORMATION_SCHEMA.TABLES also works but lacks definition
-      const query = `
+      query = `
         SELECT
           v.TABLE_SCHEMA + '.' + v.TABLE_NAME AS view_name,
           v.VIEW_DEFINITION
@@ -45,12 +46,14 @@ export class ListViewTool implements Tool {
         success: true,
         message: `List views executed successfully`,
         items: result.recordset,
+        query,
       };
     } catch (error) {
       console.error("Error listing views:", error);
       return {
         success: false,
         message: `Failed to list views: ${error}`,
+        query,
       };
     }
   }

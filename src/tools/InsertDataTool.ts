@@ -71,6 +71,7 @@ IMPORTANT RULES:
     required: ["tableName", "data"],
   } as any;
   async run(params: any) {
+    let query: string | undefined;
     try {
       const { tableName, data } = params;
       // Check if data is an array (multiple records) or single object
@@ -108,12 +109,13 @@ IMPORTANT RULES:
             request.input(`value${recordIndex}_${columnIndex}`, record[column]);
           });
         });
-        const query = `INSERT INTO ${sqlTable} (${columns}) VALUES ${valueClauses.join(", ")}`;
+        query = `INSERT INTO ${sqlTable} (${columns}) VALUES ${valueClauses.join(", ")}`;
         await request.query(query);
         return {
           success: true,
           message: `Successfully inserted ${records.length} record${records.length > 1 ? "s" : ""} into ${tableName}`,
           recordsInserted: records.length,
+          query,
         };
       } else {
         // Single record insert
@@ -123,12 +125,13 @@ IMPORTANT RULES:
         firstRecordColumns.forEach((column: string, index: number) => {
           request.input(`value${index}`, records[0][column]);
         });
-        const query = `INSERT INTO ${sqlTable} (${columns}) VALUES (${values})`;
+        query = `INSERT INTO ${sqlTable} (${columns}) VALUES (${values})`;
         await request.query(query);
         return {
           success: true,
           message: `Successfully inserted 1 record into ${tableName}`,
           recordsInserted: 1,
+          query,
         };
       }
     } catch (error) {
@@ -136,6 +139,7 @@ IMPORTANT RULES:
       return {
         success: false,
         message: `Failed to insert data: ${error}`,
+        query,
       };
     }
   }

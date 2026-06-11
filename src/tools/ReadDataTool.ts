@@ -198,9 +198,8 @@ export class ReadDataTool implements Tool {
    * @returns Query execution result
    */
   async run(params: any) {
+    const { query } = params;
     try {
-      const { query } = params;
-      
       // Validate the query for security issues
       const validation = this.validateQuery(query);
       if (!validation.isValid) {
@@ -208,7 +207,8 @@ export class ReadDataTool implements Tool {
         return {
           success: false,
           message: `Security validation failed: ${validation.error}`,
-          error: 'SECURITY_VALIDATION_FAILED'
+          error: 'SECURITY_VALIDATION_FAILED',
+          query,
         };
       }
 
@@ -228,21 +228,19 @@ export class ReadDataTool implements Tool {
         data: sanitizedData,
         recordCount: sanitizedData.length,
         truncated,
+        query,
       };
       
     } catch (error) {
       console.error("Error executing query:", error);
       
-      // Don't expose internal error details to prevent information leakage
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      const safeErrorMessage = errorMessage.includes('Invalid object name') 
-        ? errorMessage 
-        : 'Database query execution failed';
       
       return {
         success: false,
-        message: `Failed to execute query: ${safeErrorMessage}`,
-        error: 'QUERY_EXECUTION_FAILED'
+        message: `Failed to execute query: ${errorMessage}`,
+        error: 'QUERY_EXECUTION_FAILED',
+        query,
       };
     }
   }

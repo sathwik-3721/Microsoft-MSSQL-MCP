@@ -21,6 +21,7 @@ export class ListTableTool implements Tool {
   } as any;
 
   async run(params: any) {
+    let query: string | undefined;
     try {
       const { parameters } = params;
       const request = new sql.Request();
@@ -33,18 +34,20 @@ export class ListTableTool implements Tool {
         });
         schemaFilter = `AND TABLE_SCHEMA IN (${placeholders.join(", ")})`;
       }
-      const query = `SELECT TABLE_SCHEMA + '.' + TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ${schemaFilter} ORDER BY TABLE_SCHEMA, TABLE_NAME`;
+      query = `SELECT TABLE_SCHEMA + '.' + TABLE_NAME AS table_name FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ${schemaFilter} ORDER BY TABLE_SCHEMA, TABLE_NAME`;
       const result = await request.query(query);
       return {
         success: true,
         message: `List tables executed successfully`,
         items: result.recordset,
+        query,
       };
     } catch (error) {
       console.error("Error listing tables:", error);
       return {
         success: false,
         message: `Failed to list tables: ${error}`,
+        query,
       };
     }
   }

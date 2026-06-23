@@ -14,6 +14,7 @@ import {
   ListToolsRequestSchema,
   ListPromptsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { backOff } from "exponential-backoff";
 
 // Internal imports
 import { UpdateDataTool } from "./tools/UpdateDataTool.js";
@@ -176,9 +177,10 @@ function createMcpServer(): Server {
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
-  } catch (error) {
+  } catch (error: any) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
-      content: [{ type: "text", text: `Error occurred: ${error}` }],
+      content: [{ type: "text", text: `Error occurred: ${errorMessage}` }],
       isError: true,
     };
   }
@@ -396,9 +398,36 @@ function wrapToolRun(tool: { name: string; run: (...args: any[]) => Promise<any>
     const toolArgs = args[0] ?? {};
     logToolCall(tool.name, toolArgs);
     const start = Date.now();
+    
     try {
-      await ensureSqlConnection();
-      const result = await originalRun(...args);
+      const result = await backOff(
+        async () => {
+          await ensureSqlConnection();
+          return await originalRun(...args);
+        },
+        {
+          numOfAttempts: 3,
+          startingDelay: 1000,
+          retry: (error: any, attemptNumber: number) => {
+            // Check if the error is a RequestError (usually SQL syntax or logic errors).
+            // Retrying these is pointless and wastes connection pooling.
+            if (error && error.name === "RequestError") {
+              console.error(`[MCP] Tool ${tool.name} failed with RequestError (execution/syntax error): ${error.message || error}. Aborting retries.`);
+              return false; // Abort retry and throw the error back to the Agent
+            }
+
+            console.error(`[MCP] Tool ${tool.name} failed on attempt ${attemptNumber}: ${error.message || error}`);
+            
+            // For connection/timeout errors, clear the stale connection pool before retrying
+            if (globalSqlPool) {
+              globalSqlPool.close().catch(() => {});
+              globalSqlPool = null;
+            }
+            return true; // Keep retrying until numOfAttempts is reached
+          },
+        }
+      );
+
       logToolSuccess(tool.name, Date.now() - start, result);
       return result;
     } catch (error) {

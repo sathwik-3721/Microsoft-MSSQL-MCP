@@ -411,7 +411,9 @@ function wrapToolRun(tool: { name: string; run: (...args: any[]) => Promise<any>
           retry: (error: any, attemptNumber: number) => {
             // Check if the error is a RequestError (usually SQL syntax or logic errors).
             // Retrying these is pointless and wastes connection pooling.
-            if (error && error.name === "RequestError") {
+            // EXCEPT if it is a timeout, because mssql also throws timeouts as RequestError.
+            const isTimeout = error?.message?.toLowerCase().includes("timeout");
+            if (error && error.name === "RequestError" && !isTimeout) {
               console.error(`[MCP] Tool ${tool.name} failed with RequestError (execution/syntax error): ${error.message || error}. Aborting retries.`);
               return false; // Abort retry and throw the error back to the Agent
             }

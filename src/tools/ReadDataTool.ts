@@ -170,8 +170,8 @@ export class ReadDataTool implements Tool {
       return { truncated: false, data: [] };
     }
 
-    // Limit the number of returned records to prevent memory issues
-    const maxRecords = 10000;
+    // Limit the number of returned records to prevent LLM context window exhaustion and massive token costs
+    const maxRecords = 100;
     const truncated = data.length > maxRecords;
     if (truncated) console.warn(`Query returned ${data.length} records, limiting to ${maxRecords}`);
     const limited = truncated ? data.slice(0, maxRecords) : data;
@@ -224,7 +224,7 @@ export class ReadDataTool implements Tool {
 
       return {
         success: true,
-        message: `Query executed successfully. Retrieved ${sanitizedData.length} record(s)${truncated ? ` (truncated — more than 10,000 rows exist)` : ""}`,
+        message: `Query executed successfully. Retrieved ${sanitizedData.length} record(s)${truncated ? ` (truncated — more than 100 rows exist. Please write aggregate queries like COUNT() or SUM() to analyze large datasets)` : ""}`,
         data: sanitizedData,
         recordCount: sanitizedData.length,
         truncated,

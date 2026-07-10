@@ -4,8 +4,8 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 export class DescribeTableTool implements Tool {
   [key: string]: any;
-  name = "describe_table";
-  description = "Describes a specified MSSQL Database table or view, returning detailed column metadata (types, nullability, max length, precision, scale, defaults, and column-level descriptions).";
+  name = "get_table_schema";
+  description = "Describes a specific table or view, returning columns, data types, business descriptions, physical foreign keys, and semantic join targets. Call this AFTER discovering tables to get deep-dive metadata for a specific entity.";
   inputSchema = {
     type: "object",
     properties: {
@@ -40,7 +40,9 @@ export class DescribeTableTool implements Tool {
             c.scale,
             c.is_nullable,
             CASE WHEN c.default_object_id <> 0 THEN 1 ELSE 0 END as has_default,
-            ISNULL(CAST(ep.value AS NVARCHAR(MAX)), '') as description
+            ISNULL(CAST(ep.value AS NVARCHAR(MAX)), '') as description,
+            ISNULL(fk.referenced_column, '') as foreign_key_target,
+            ISNULL(CAST(ep_join.value AS NVARCHAR(MAX)), '') as semantic_join_target
         FROM sys.schemas s
         INNER JOIN sys.objects t ON s.schema_id = t.schema_id AND t.type IN ('U', 'V')
         INNER JOIN sys.columns c ON t.object_id = c.object_id
@@ -48,6 +50,16 @@ export class DescribeTableTool implements Tool {
         LEFT JOIN sys.extended_properties ep ON ep.major_id = t.object_id 
             AND ep.minor_id = c.column_id 
             AND ep.name = 'MS_Description'
+        LEFT JOIN sys.extended_properties ep_join ON ep_join.major_id = t.object_id 
+            AND ep_join.minor_id = c.column_id 
+            AND ep_join.name = 'SemanticJoinTarget'
+        OUTER APPLY (
+            SELECT TOP 1
+                OBJECT_SCHEMA_NAME(fk_cols.referenced_object_id) + '.' + OBJECT_NAME(fk_cols.referenced_object_id) + '.' + rc.name AS referenced_column
+            FROM sys.foreign_key_columns fk_cols
+            INNER JOIN sys.columns rc ON fk_cols.referenced_object_id = rc.object_id AND fk_cols.referenced_column_id = rc.column_id
+            WHERE fk_cols.parent_object_id = c.object_id AND fk_cols.parent_column_id = c.column_id
+        ) fk
         WHERE t.name = @tableName
       `;
 

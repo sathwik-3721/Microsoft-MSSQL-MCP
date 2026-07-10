@@ -28,6 +28,7 @@ import { DefaultAzureCredential, InteractiveBrowserCredential } from "@azure/ide
 import { DescribeTableTool } from "./tools/DescribeTableTool.js";
 import { ListViewTool } from "./tools/ListViewTool.js";
 import { SchemaDiscoveryTool } from "./tools/SchemaDiscoveryTool.js";
+import { ListSemanticEntitiesTool } from "./tools/ListSemanticEntitiesTool.js";
 import { logToolCall, logToolSuccess, logToolError } from "./logger.js";
 
 dotenv.config();
@@ -108,12 +109,13 @@ const dropTableTool     = new DropTableTool();
 const describeTableTool = new DescribeTableTool();
 const listViewTool      = new ListViewTool();
 const schemaDiscoveryTool = new SchemaDiscoveryTool();
+const listSemanticEntitiesTool = new ListSemanticEntitiesTool();
 
 const isReadOnly = process.env.READONLY === "true";
 
 const allTools = isReadOnly
-  ? [listTableTool, listViewTool, readDataTool, describeTableTool, schemaDiscoveryTool]
-  : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewTool, schemaDiscoveryTool];
+  ? [listTableTool, listViewTool, readDataTool, describeTableTool, schemaDiscoveryTool, listSemanticEntitiesTool]
+  : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewTool, schemaDiscoveryTool, listSemanticEntitiesTool];
 
 // ── MCP Server factory ──────────────────────────────────────────────────────
 // A new Server instance is created per session so each connection gets its own
@@ -159,11 +161,14 @@ function createMcpServer(): Server {
       case describeTableTool.name:
         if (!args || typeof args.tableName !== "string") {
           return {
-            content: [{ type: "text", text: `Missing or invalid 'tableName' argument for describe_table tool.` }],
+            content: [{ type: "text", text: `Missing or invalid 'tableName' argument for get_table_schema tool.` }],
             isError: true,
           };
         }
         result = await describeTableTool.run(args as { tableName: string });
+        break;
+      case listSemanticEntitiesTool.name:
+        result = await listSemanticEntitiesTool.run(args as { schema?: string });
         break;
       case schemaDiscoveryTool.name:
         result = await schemaDiscoveryTool.run(args as { schema?: string });
@@ -439,4 +444,4 @@ function wrapToolRun(tool: { name: string; run: (...args: any[]) => Promise<any>
   };
 }
 
-[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, describeTableTool, listViewTool, schemaDiscoveryTool].forEach(wrapToolRun);
+[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, describeTableTool, listViewTool, schemaDiscoveryTool, listSemanticEntitiesTool].forEach(wrapToolRun);

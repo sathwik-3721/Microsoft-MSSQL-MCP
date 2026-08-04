@@ -72,12 +72,21 @@ function summarise(result: unknown): string {
     parts.push(`tables(${r.items.length})=[${names}]`);
   }
 
-  // describe_table → columns: [{ name, type }, ...]
+  // describe_table → columns: [{ name, type }, ...] or schema_discovery → columns: [{ column_name, column_type }, ...]
   if ("columns" in r && Array.isArray(r.columns)) {
-    const cols = (r.columns as { name: string; type: string }[])
-      .map((c) => `${c.name}:${c.type}`)
-      .join(", ");
-    parts.push(`columns(${r.columns.length})=[${cols}]`);
+    const totalCols = r.columns.length;
+    const formatted = (r.columns as Record<string, unknown>[]).slice(0, 5).map((c) => {
+      const name = (c.name ?? c.column_name ?? "unknown") as string;
+      const type = (c.type ?? c.column_type ?? "unknown") as string;
+      return `${name}:${type}`;
+    });
+    const suffix = totalCols > 5 ? `, ... (${totalCols - 5} more)` : "";
+    parts.push(`columns(${totalCols})=[${formatted.join(", ")}${suffix}]`);
+  }
+
+  // schema_discovery → relationships: [{ constraint_name, ... }, ...]
+  if ("relationships" in r && Array.isArray(r.relationships)) {
+    parts.push(`relationships(${r.relationships.length})`);
   }
 
   // insert/update/delete → rowsAffected

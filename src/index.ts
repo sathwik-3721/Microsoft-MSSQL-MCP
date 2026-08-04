@@ -153,6 +153,9 @@ function createMcpServer(): Server {
       case listTableTool.name:
         result = await listTableTool.run(args);
         break;
+      case listViewTool.name:
+        result = await listViewTool.run(args);
+        break;
       case dropTableTool.name:
         result = await dropTableTool.run(args);
         break;

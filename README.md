@@ -52,16 +52,16 @@ Compared to the upstream Azure-Samples template, which was restricted to running
 
 * **Why it matters**: This makes the server fully deployable to cloud environments like **Azure Container Apps (ACA)** or **AWS Fargate**, where remote web-based Agent Frameworks (e.g., Microsoft Agent Framework, AutoGen, Semantic Kernel) can connect to it over standard HTTP/HTTPS.
 
-### 2. New `schema_discovery` Tool
+### 2. Enhanced `schema_discovery` Tool
 
 * **Upstream**: Required the agent to call `list_tables` followed by `describe_table` individually for every single table. This resulted in an $N+1$ network call overhead, causing high latency and token consumption.
 * **This Version**: Adds the `schema_discovery` tool, which fetches the metadata blueprint of the entire database in a single query:
-  * Table & Schema Names
-  * Columns and Data Types
-  * Data constraints (`max_length`, `precision`, `scale`, `is_nullable`)
-  * Default constraint flag (`has_default`)
-  * Table-level description (`table_description`) resolved via SQL Server **Extended Properties** (`MS_Description`).
-* **Why it matters**: The LLM can bootstrap its context in a single call, understand the database layout, and use table descriptions to semantically map user requests (like "customer history") to the exact matching database tables.
+  * Table & View Names with Type Classification (`object_type`: `'TABLE'` or `'VIEW'`)
+  * Columns and Data Types (`column_name`, `column_type`)
+  * Data constraints (`max_length`, `precision`, `scale`, `is_nullable`, `has_default`)
+  * Table-level and Column-level descriptions (`table_description`, `column_description`) resolved via SQL Server **Extended Properties** (`MS_Description`).
+  * Database Relationships (`relationships`): Physical Foreign Keys and `SemanticJoinTarget` extended properties.
+* **Why it matters**: The LLM can bootstrap its context in a single call, understand the database layout, inspect table relationships, and use table descriptions to semantically map user requests (like "customer history") to the exact matching database tables.
 
 ### 3. New `list_view` Tool
 
@@ -169,6 +169,31 @@ To configure Claude Desktop to use this server, add the following to your config
 }
 ```
 
+### Option C: Interactive Testing with MCP Inspector (`@modelcontextprotocol/inspector`)
+
+You can test tool definitions, schema discovery, and query execution interactively in your browser using the official MCP Inspector.
+
+#### 1. Stdio Mode (Default)
+```bash
+npx @modelcontextprotocol/inspector node dist/index.js
+```
+
+To test read-only mode (`READONLY=true`):
+* **PowerShell**: `$env:READONLY="true"; npx @modelcontextprotocol/inspector node dist/index.js`
+* **CMD**: `set READONLY=true && npx @modelcontextprotocol/inspector node dist/index.js`
+* **Bash**: `READONLY=true npx @modelcontextprotocol/inspector node dist/index.js`
+
+#### 2. HTTP / Streamable HTTP Mode
+First start the server in HTTP mode:
+```bash
+node dist/index.js --http
+```
+
+Then launch the Inspector targeting the HTTP endpoint in a separate terminal:
+```bash
+npx @modelcontextprotocol/inspector http://localhost:8080/mcp
+```
+
 ---
 
 ## Environment Variables Configuration (`.env`)
@@ -210,7 +235,7 @@ CONNECTION_TIMEOUT=30
 
 The following tools are registered on the MCP protocol:
 
-* **`schema_discovery`** [NEW]: Discover the entire schema (tables, columns, types, defaults, and table descriptions).
+* **`schema_discovery`** [ENHANCED]: Discover complete database schema (tables, views, columns, types, nullability, defaults, descriptions, and physical Foreign Keys & Semantic Joins).
 * **`list_table`**: List tables in the database (optionally filtered by schema).
 * **`list_view`** [NEW]: List views and their view definitions.
 * **`describe_table`** [ENHANCED]: Returns detailed column metadata (types, nullability, max length, precision, scale, defaults, and column-level descriptions) for a single table or view.
